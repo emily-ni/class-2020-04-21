@@ -17,7 +17,7 @@ cces <- read_rds("cces_initial.rds")
 
 **Intro:** [Machine Learning](https://davidkane9.github.io/PPBDS/14-machine-learning.html). In today's class, we'll be applying your knowledge of regression models to the magical concept of machine learning. After this lesson, you'll have an introductory understanding of training, testing, validation, and classification.
 
-**Data:** The dataset you'll be working with today is the 2006 -- 2018 Cooperative Congressional Election Study data. This is the same dataset as used in the textbook, but we'll be using slightly different variables. This dataset has already been cleaned to remove non-responses and labeled so it's easier to read (eg: for `gender` 1 is now Male and 2 is Female). `income` has been changed from a factor to numeric where 1 = "Less than 10k" and 12 = "150k+". The variable we'll be trying to predict is how people voted in 2016. From the responses, which we filtered down to just people who voted for Donald Trump or Hilary Clinton, we'll be trying to predict who voted for Trump. In the variable, called "trump", a 1 is someone who voted for Trump and a 0 is someone Clinton.
+**Data:** The dataset you'll be working with today is the 2006 -- 2018 Cooperative Congressional Election Study data. This is the same dataset as used in the textbook, but we'll be using slightly different variables. This dataset has already been cleaned to remove non-responses and labeled so it's easier to read (eg: for `gender` 1 is now Male and 2 is Female). `income` has been changed from a factor to numeric where 1 = "Less than 10k" and 12 = "150k+". The variable we'll be trying to predict is how people voted in 2016. From the responses, which we filtered down to just people who voted for Donald Trump or Hillary Clinton, we'll be trying to predict who voted for Trump. In the variable, called "trump", a 1 is someone who voted for Trump and a 0 is someone Clinton.
 
 # Day 1
 
@@ -27,7 +27,22 @@ cces <- read_rds("cces_initial.rds")
 
 1) What is the age of oldest person who responded to this survey?
 
+```{r}
+cces %>%
+  arrange(desc(age)) %>%
+  select(age) %>%
+  head(1) %>%
+  pluck(1)
+```
+
+
 2) What proportion of females voted for Trump? 
+
+```{r}
+cces %>% 
+  filter(gender == "Female") %>%
+  summarize(prop = sum(trump == 1) / n())
+```
 
 
 # Scene 2
@@ -36,9 +51,32 @@ cces <- read_rds("cces_initial.rds")
 
 1) Print out the model with the confidence interval and interpret the coefficient of `gender`? (Hint: use the divide-by-four rule.) Explain the association of Trump-voting with variables like `income` and `party` to your smart-but-not-mathematical boss. Why doesn't income matter?
 
+```{r}
+logistic_mod <- logistic_reg() %>%
+  set_engine("glm")
+
+logistic_fit <- fit(logistic_mod,
+                    trump ~ educ + age + party + ideology + income + gender + race,
+                    data = cces)
+logistic_fit %>%
+  tidy(conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high)
+```
+
+
 2) What is the expected vote for Dom - who is Male, 37, holds a 4-year degree (placing him in the 5 `educ` bucket), Asian, makes $77,000, with `ideology` and `party` equal to 3. (Hint: use predict().)
 
+```{r}
+predict(logistic_fit, new_data = data.frame(gender = "Male", 
+                                            age = 37, 
+                                            educ = 5, 
+                                            race = "Asian", 
+                                            income = 8, 
+                                            ideology = 3, 
+                                            party = 3))
+```
 
+Expected to vote for Clinton!
 
 # Scene 3
 
@@ -46,8 +84,36 @@ cces <- read_rds("cces_initial.rds")
 
 1) Interpret the output of the CART model (Hint: set extra = "auto" in `prp()`.) Where would Dom fall in this decision tree? 
 
+```{r}
+
+set.seed(1005)
+
+cart_mod <- decision_tree() %>%
+  set_engine("rpart", model = TRUE) %>%
+  set_mode("classification")
+
+cart_fit <- fit(cart_mod,
+                    trump ~ educ + age + party + ideology + income + gender + race,
+                    data = cces)
+cart_fit$fit %>%
+  prp(extra = "auto")
+```
+
 2) Looking at the randomForest model, what does the OOB error tell us? Interpret the first row, second column of the confusion matrix, what does that 920 represent? How does 920 relate to the class.error of 0.078?
 
+```{r}
+
+set.seed(1005)
+
+rf_mod <- rand_forest(mtry = 7, trees = 50) %>%
+  set_engine("randomForest") %>%
+  set_mode("classification")
+
+rf_fit <- fit(rf_mod,
+              trump ~ educ + age + party + ideology + income + gender + race,
+              data = cces)
+rf_fit
+```
 
 
 # Scene 4
